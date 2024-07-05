@@ -12,4 +12,7 @@ interface StationDao : BaseDao<StationEntity> {
 
     @Query("DELETE FROM station")
     suspend fun deleteAll()
+
+    @Query("SELECT (SELECT COUNT(*) FROM station_keyword) == 0")
+    suspend fun isEmpty(): Boolean
 }
