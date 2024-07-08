@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.julianczaja.stations.di.IoDispatcher
 import com.julianczaja.stations.domain.StationsFileReader
+import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
+import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,8 +26,15 @@ class MainScreenViewModel @Inject constructor(
     private val stationsFileReader: StationsFileReader,
     private val stationRepository: StationRepository,
     private val stationKeywordRepository: StationKeywordRepository,
+    private val appDataRepository: AppDataRepository,
+    private val calculateShouldRefreshDataUseCase: CalculateShouldRefreshDataUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
+
+    private companion object {
+        const val ONE_DAY_MILLIS = 86_400_000L
+        const val REFRESH_INTERVAL_MILLIS = ONE_DAY_MILLIS
+    }
 
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating = _isUpdating.asStateFlow()
@@ -60,15 +69,16 @@ class MainScreenViewModel @Inject constructor(
     }
 
     private suspend fun updateDatabaseFromNetwork() {
-        val shouldRefresh = true // TODO: Check if data was fetched in last 24h
+        val shouldRefresh = calculateShouldRefreshDataUseCase(
+            currentTimestamp = getCurrentTimestamp(),
+            refreshInterval = REFRESH_INTERVAL_MILLIS
+        )
 
-        if (shouldRefresh) {
-            stationRepository.updateStationsRemote()
-                .onFailure { Timber.e("updateStationsRemote error: $it") }
-                .onSuccess {
-                    // TODO: Save last remote data update datetime
-                }
-        }
+        if (!shouldRefresh) return
+
+        stationRepository.updateStationsRemote()
+            .onFailure { Timber.e("updateStationsRemote error: $it") }
+            .onSuccess { appDataRepository.setLastDataUpdateTimestamp(getCurrentTimestamp()) }
     }
 
     private suspend fun updateDatabaseFromJson() {
@@ -83,4 +93,6 @@ class MainScreenViewModel @Inject constructor(
                 .onSuccess { keywords -> stationKeywordRepository.updateDatabase(keywords) }
         }
     }
+
+    private fun getCurrentTimestamp() = System.currentTimeMillis()
 }

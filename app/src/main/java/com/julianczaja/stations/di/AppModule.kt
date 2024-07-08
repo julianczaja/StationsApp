@@ -1,6 +1,10 @@
 package com.julianczaja.stations.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.julianczaja.stations.data.StationsFileReaderImpl
@@ -9,9 +13,11 @@ import com.julianczaja.stations.data.local.database.dao.StationDao
 import com.julianczaja.stations.data.local.database.dao.StationKeywordDao
 import com.julianczaja.stations.data.remote.KoleoApi
 import com.julianczaja.stations.data.remote.VersionHeaderInterceptor
+import com.julianczaja.stations.data.repository.AppDataRepositoryImpl
 import com.julianczaja.stations.data.repository.StationKeywordRepositoryImpl
 import com.julianczaja.stations.data.repository.StationRepositoryImpl
 import com.julianczaja.stations.domain.StationsFileReader
+import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
 import dagger.Module
@@ -29,6 +35,7 @@ import javax.inject.Singleton
 
 private const val BASE_URL = "https://koleo.pl/"
 private const val DATABASE_NAME = "app_database"
+private const val APP_DATA_STORE_NAME = "app_data_store"
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -90,4 +97,17 @@ object AppModule {
         api: KoleoApi,
         dao: StationKeywordDao
     ): StationKeywordRepository = StationKeywordRepositoryImpl(api, dao)
+
+    @Provides
+    @Singleton
+    fun provideDataStore(@ApplicationContext applicationContext: Context): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create(
+            produceFile = { applicationContext.preferencesDataStoreFile(APP_DATA_STORE_NAME) }
+        )
+
+    @Provides
+    @Singleton
+    fun provideAppDataRepository(
+        dataStore: DataStore<Preferences>
+    ): AppDataRepository = AppDataRepositoryImpl(dataStore)
 }
