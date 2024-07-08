@@ -1,9 +1,10 @@
 package com.julianczaja.stations.presentation.main
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.julianczaja.stations.R
+import com.julianczaja.stations.data.model.Station
+import com.julianczaja.stations.data.model.StationKeyword
 import com.julianczaja.stations.presentation.components.AppBackground
 
 @Composable
@@ -24,6 +27,8 @@ fun MainScreen(
     viewModel: MainScreenViewModel = viewModel()
 ) {
     val isUpdating by viewModel.isUpdating.collectAsStateWithLifecycle()
+    val stations by viewModel.stations.collectAsStateWithLifecycle()
+    val stationKeywords by viewModel.stationKeywords.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.updateData()
@@ -31,25 +36,31 @@ fun MainScreen(
 
     MainScreenContent(
         modifier = Modifier.fillMaxSize(),
-        isUpdating = isUpdating
+        isUpdating = isUpdating,
+        stations = stations,
+        stationKeywords = stationKeywords,
     )
 }
 
 @Composable
 fun MainScreenContent(
     modifier: Modifier = Modifier,
-    isUpdating: Boolean
+    isUpdating: Boolean,
+    stations: List<Station>,
+    stationKeywords: List<StationKeyword>
 ) {
     when (isUpdating) {
         true -> LoadingScreen(modifier)
         false -> {
-            Box(
+            LazyColumn(
                 modifier = modifier
             ) {
-                Text(
-                    modifier = Modifier.align(Alignment.Center),
-                    text = "Hello world!"
-                )
+                items(stations) { station ->
+                    Text(text = station.name)
+                }
+                items(stationKeywords) { station ->
+                    Text(text = station.keyword)
+                }
             }
         }
     }
@@ -72,7 +83,12 @@ private fun LoadingScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun MainScreenPreview() {
     AppBackground {
-        MainScreenContent(modifier = Modifier.fillMaxSize(), isUpdating = false)
+        MainScreenContent(
+            modifier = Modifier.fillMaxSize(),
+            isUpdating = false,
+            stations = listOf(Station(1L, "name", 12.0, 15.0, 200)),
+            stationKeywords = listOf(StationKeyword(1L, "keyword", 12L))
+        )
     }
 }
 
@@ -80,7 +96,12 @@ private fun MainScreenPreview() {
 @Composable
 private fun MainScreenLoadingPreview() {
     AppBackground {
-        MainScreenContent(modifier = Modifier.fillMaxSize(), isUpdating = true)
+        MainScreenContent(
+            modifier = Modifier.fillMaxSize(),
+            isUpdating = true,
+            stations = listOf(Station(1L, "name", 12.0, 15.0, 200)),
+            stationKeywords = listOf(StationKeyword(1L, "keyword", 12L))
+        )
     }
 }
 //endregion
