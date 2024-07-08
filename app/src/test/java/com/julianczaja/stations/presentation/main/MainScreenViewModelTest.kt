@@ -3,6 +3,7 @@ package com.julianczaja.stations.presentation.main
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.julianczaja.stations.MainDispatcherRule
+import com.julianczaja.stations.data.NetworkManager
 import com.julianczaja.stations.domain.StationsFileReader
 import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
@@ -26,6 +27,7 @@ class MainScreenViewModelTest {
     val dispatcherRule = MainDispatcherRule()
 
     private lateinit var stationsFileReader: StationsFileReader
+    private lateinit var networkManager: NetworkManager
     private lateinit var stationRepository: StationRepository
     private lateinit var stationKeywordRepository: StationKeywordRepository
     private lateinit var appDataRepository: AppDataRepository
@@ -34,6 +36,9 @@ class MainScreenViewModelTest {
     @Before
     fun setup() {
         stationsFileReader = mockk()
+        coEvery { stationsFileReader.readStations() } returns Result.success(emptyList())
+        coEvery { stationsFileReader.readStationKeywords() } returns Result.success(emptyList())
+        networkManager = mockk()
         stationRepository = mockk(relaxed = true)
         stationKeywordRepository = mockk(relaxed = true)
         appDataRepository = mockk(relaxUnitFun = true)
@@ -43,6 +48,7 @@ class MainScreenViewModelTest {
 
     private fun getViewModel() = MainScreenViewModel(
         stationsFileReader = stationsFileReader,
+        networkManager = networkManager,
         stationRepository = stationRepository,
         stationKeywordRepository = stationKeywordRepository,
         appDataRepository = appDataRepository,
@@ -51,7 +57,8 @@ class MainScreenViewModelTest {
     )
 
     @Test
-    fun `isUpdating should be false on start and true during data update`() = runTest {
+    fun `isUpdating should be false on start and true during offline data update`() = runTest {
+        coEvery { networkManager.isCurrentlyConnected() } returns false
         coEvery { stationsFileReader.readStations() } coAnswers {
             delay(100L)
             Result.success(emptyList())
@@ -74,13 +81,108 @@ class MainScreenViewModelTest {
     }
 
     @Test
-    fun `updateData function uses stationsFileReader when database is empty`() {
+    fun `isUpdating should be false on start and true during online data update`() = runTest {
+        coEvery { networkManager.isCurrentlyConnected() } returns true
+        coEvery { calculateShouldRefreshDataUseCase.invoke(any(), any()) } returns true
+        coEvery { stationRepository.updateStationsRemote() } coAnswers {
+            delay(100L)
+            Result.success(Unit)
+        }
+        coEvery { stationKeywordRepository.updateStationKeywordsRemote() } coAnswers {
+            delay(100L)
+            Result.success(Unit)
+        }
+
+        val viewModel = getViewModel()
+
+        viewModel.isUpdating.test {
+            assertThat(awaitItem()).isFalse()
+            viewModel.updateData()
+            assertThat(awaitItem()).isTrue()
+            assertThat(awaitItem()).isFalse()
+        }
+    }
+
+    @Test
+    fun `database should be updated from local file when no internet and database is empty`() {
+        coEvery { networkManager.isCurrentlyConnected() } returns false
         coEvery { stationsFileReader.readStations() } returns Result.success(emptyList())
         coEvery { stationsFileReader.readStationKeywords() } returns Result.success(emptyList())
-
         coEvery { stationRepository.isEmpty() } returns true
         coEvery { stationKeywordRepository.isEmpty() } returns true
 
+        val viewModel = getViewModel()
+
+        viewModel.updateData()
+
+        coVerify(exactly = 1) { stationsFileReader.readStations() }
+        coVerify(exactly = 1) { stationsFileReader.readStationKeywords() }
+        coVerify(exactly = 1) { stationRepository.updateDatabase(any()) }
+        coVerify(exactly = 1) { stationKeywordRepository.updateDatabase(any()) }
+    }
+
+    @Test
+    fun `database should not be updated when there is no internet and database is not empty`() {
+        coEvery { networkManager.isCurrentlyConnected() } returns false
+        coEvery { stationsFileReader.readStations() } returns Result.success(emptyList())
+        coEvery { stationsFileReader.readStationKeywords() } returns Result.success(emptyList())
+        coEvery { stationRepository.isEmpty() } returns false
+        coEvery { stationKeywordRepository.isEmpty() } returns false
+
+        val viewModel = getViewModel()
+
+        viewModel.updateData()
+
+        coVerify(exactly = 0) { stationsFileReader.readStations() }
+        coVerify(exactly = 0) { stationsFileReader.readStationKeywords() }
+        coVerify(exactly = 0) { stationRepository.updateDatabase(any()) }
+        coVerify(exactly = 0) { stationKeywordRepository.updateDatabase(any()) }
+    }
+
+    @Test
+    fun `remote update triggers when there is interent connection and should refresh`() {
+        val remoteResult = Result.success(Unit)
+        coEvery { networkManager.isCurrentlyConnected() } returns true
+        coEvery { calculateShouldRefreshDataUseCase.invoke(any(), any()) } returns true
+        coEvery { stationRepository.updateStationsRemote() } returns remoteResult
+        coEvery { stationKeywordRepository.updateStationKeywordsRemote() } returns remoteResult
+
+        val viewModel = getViewModel()
+
+        viewModel.updateData()
+
+        coVerify(exactly = 1) { stationRepository.updateStationsRemote() }
+        coVerify(exactly = 1) { stationKeywordRepository.updateStationKeywordsRemote() }
+        coVerify(exactly = 0) { stationsFileReader.readStations() }
+        coVerify(exactly = 0) { stationsFileReader.readStationKeywords() }
+    }
+
+    @Test
+    fun `remote update does not trigger when there is interent connection and should not refresh`() {
+        val remoteResult = Result.success(Unit)
+        coEvery { networkManager.isCurrentlyConnected() } returns true
+        coEvery { calculateShouldRefreshDataUseCase.invoke(any(), any()) } returns false
+        coEvery { stationRepository.updateStationsRemote() } returns remoteResult
+        coEvery { stationKeywordRepository.updateStationKeywordsRemote() } returns remoteResult
+
+        val viewModel = getViewModel()
+
+        viewModel.updateData()
+
+        coVerify(exactly = 0) { stationRepository.updateStationsRemote() }
+        coVerify(exactly = 0) { stationKeywordRepository.updateStationKeywordsRemote() }
+        coVerify(exactly = 0) { stationsFileReader.readStations() }
+        coVerify(exactly = 0) { stationsFileReader.readStationKeywords() }
+    }
+
+    @Test
+    fun `data should be loaded from file when remote update throws exception and database is empty`() {
+        val remoteResult = Result.failure<Unit>(Exception())
+        coEvery { networkManager.isCurrentlyConnected() } returns true
+        coEvery { calculateShouldRefreshDataUseCase.invoke(any(), any()) } returns true
+        coEvery { stationRepository.updateStationsRemote() } returns remoteResult
+        coEvery { stationRepository.isEmpty() } returns true
+        coEvery { stationKeywordRepository.isEmpty() } returns true
         val viewModel = getViewModel()
 
         viewModel.updateData()

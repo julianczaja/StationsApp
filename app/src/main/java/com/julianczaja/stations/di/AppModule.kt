@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.julianczaja.stations.data.NetworkManager
 import com.julianczaja.stations.data.StationsFileReaderImpl
 import com.julianczaja.stations.data.local.database.AppDatabase
 import com.julianczaja.stations.data.local.database.dao.StationDao
@@ -110,4 +111,8 @@ object AppModule {
     fun provideAppDataRepository(
         dataStore: DataStore<Preferences>
     ): AppDataRepository = AppDataRepositoryImpl(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideNetworkManager(@ApplicationContext context: Context) = NetworkManager(context)
 }

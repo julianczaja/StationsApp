@@ -2,6 +2,7 @@ package com.julianczaja.stations.presentation.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.julianczaja.stations.data.NetworkManager
 import com.julianczaja.stations.di.IoDispatcher
 import com.julianczaja.stations.domain.StationsFileReader
 import com.julianczaja.stations.domain.repository.AppDataRepository
@@ -24,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainScreenViewModel @Inject constructor(
     private val stationsFileReader: StationsFileReader,
+    private val networkManager: NetworkManager,
     private val stationRepository: StationRepository,
     private val stationKeywordRepository: StationKeywordRepository,
     private val appDataRepository: AppDataRepository,
@@ -56,15 +58,13 @@ class MainScreenViewModel @Inject constructor(
         )
 
     fun updateData() {
-        val isConnectedToNetwork = false // TODO: Check internet connection
+        val isConnectedToNetwork = networkManager.isCurrentlyConnected()
 
         viewModelScope.launch(ioDispatcher) {
-            _isUpdating.update { true }
             when (isConnectedToNetwork) {
                 true -> updateDatabaseFromNetwork()
-                false -> updateDatabaseFromJson()
+                false -> preloadDatabaseFromJsonFile()
             }
-            _isUpdating.update { false }
         }
     }
 
@@ -76,22 +76,46 @@ class MainScreenViewModel @Inject constructor(
 
         if (!shouldRefresh) return
 
-        stationRepository.updateStationsRemote()
-            .onFailure { Timber.e("updateStationsRemote error: $it") }
-            .onSuccess { appDataRepository.setLastDataUpdateTimestamp(getCurrentTimestamp()) }
+        _isUpdating.update { true }
+
+        val remoteUpdateSuccess = try {
+            stationRepository.updateStationsRemote().getOrThrow()
+            stationKeywordRepository.updateStationKeywordsRemote().getOrThrow()
+            true
+        } catch (e: Exception) {
+            Timber.e("Remote data update error: $e")
+            preloadDatabaseFromJsonFile()
+            false
+        }
+
+        if (remoteUpdateSuccess) {
+            appDataRepository.setLastDataUpdateTimestamp(getCurrentTimestamp())
+        }
+
+        _isUpdating.update { false }
     }
 
-    private suspend fun updateDatabaseFromJson() {
-        if (stationRepository.isEmpty()) {
+    private suspend fun preloadDatabaseFromJsonFile() {
+        val areStationsEmpty = stationRepository.isEmpty()
+        val areStationKeywordsEmpty = stationKeywordRepository.isEmpty()
+
+        if (!areStationsEmpty && !areStationKeywordsEmpty) return
+
+        _isUpdating.update { true }
+
+        if (areStationsEmpty) {
             stationsFileReader.readStations()
                 .onFailure { e -> Timber.e("Failed to read stations from file: $e") }
                 .onSuccess { stations -> stationRepository.updateDatabase(stations) }
         }
-        if (stationKeywordRepository.isEmpty()) {
+
+        if (areStationKeywordsEmpty) {
             stationsFileReader.readStationKeywords()
                 .onFailure { e -> Timber.e("Failed to read station keywords from file: $e") }
                 .onSuccess { keywords -> stationKeywordRepository.updateDatabase(keywords) }
         }
+
+        _isUpdating.update { false }
     }
 
     private fun getCurrentTimestamp() = System.currentTimeMillis()
