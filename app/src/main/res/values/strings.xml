@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Stations App</string>
+    <string name="clear_text_field_label">Clear</string>
     <string name="loading_data">Loading data…</string>
 </resources>

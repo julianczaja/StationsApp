@@ -41,7 +41,13 @@ class MainScreenViewModel @Inject constructor(
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating = _isUpdating.asStateFlow()
 
-    val stations = stationRepository.getStationsFromDatabase()
+    private val _searchBoxAData = MutableStateFlow(SearchBoxData())
+    val searchBoxAData = _searchBoxAData.asStateFlow()
+
+    private val _searchBoxBData = MutableStateFlow(SearchBoxData())
+    val searchBoxBData = _searchBoxBData.asStateFlow()
+
+    private val stations = stationRepository.getStationsFromDatabase()
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
@@ -49,7 +55,7 @@ class MainScreenViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val stationKeywords = stationKeywordRepository.getStationKeywordsFromDatabase()
+    private val stationKeywords = stationKeywordRepository.getStationKeywordsFromDatabase()
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
@@ -67,6 +73,14 @@ class MainScreenViewModel @Inject constructor(
             }
         }
     }
+
+    fun onSearchBoxAValueChanged(value: String) {
+            _searchBoxAData.update { SearchBoxData(value) }
+        }
+
+    fun onSearchBoxBValueChanged(value: String) {
+            _searchBoxBData.update { SearchBoxData(value) }
+        }
 
     private suspend fun updateDatabaseFromNetwork() {
         val shouldRefresh = calculateShouldRefreshDataUseCase(
