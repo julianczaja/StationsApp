@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -163,7 +167,9 @@ fun MainScreenContent(
         HorizontalDivider()
 
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
         ) {
             this@Column.AnimatedVisibility(
                 visible = currentSearchBoxFocus.value == null,
@@ -187,24 +193,16 @@ fun MainScreenContent(
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = fadeOut()
             ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface)
-                ) {
-                    items(prompts) { prompt ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { promptClicked(prompt) }
-                        ) {
-                            Text(
-                                modifier = Modifier.padding(8.dp),
-                                text = prompt
-                            )
-                        }
-                        HorizontalDivider()
-                    }
+                when {
+                    prompts.isEmpty() && currentSearchBoxFocus.value != null -> NoResultsScreen(
+                        modifier = modifier
+                    )
+
+                    else -> PromptsContent(
+                        modifier = modifier,
+                        prompts = prompts,
+                        onPromptClicked = ::promptClicked
+                    )
                 }
             }
         }
@@ -216,6 +214,50 @@ fun MainScreenContent(
     ) {
         Box {
             LoadingScreen(modifier)
+        }
+    }
+}
+
+@Composable
+private fun PromptsContent(
+    modifier: Modifier = Modifier,
+    prompts: List<String>,
+    onPromptClicked: (String) -> Unit
+) {
+    LazyColumn(modifier) {
+        items(prompts) { prompt ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPromptClicked(prompt) }
+            ) {
+                Text(
+                    modifier = Modifier.padding(8.dp),
+                    text = prompt
+                )
+            }
+            HorizontalDivider()
+        }
+    }
+}
+
+@Composable
+private fun NoResultsScreen(modifier: Modifier = Modifier) {
+    Box(modifier) {
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                modifier = Modifier.size(100.dp),
+                painter = painterResource(id = R.drawable.search_not_found),
+                contentDescription = null
+            )
+            Text(
+                text = stringResource(R.string.no_results_label),
+                style = MaterialTheme.typography.displaySmall
+            )
         }
     }
 }

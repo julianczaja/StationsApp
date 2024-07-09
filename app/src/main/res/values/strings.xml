@@ -3,5 +3,6 @@
     <string name="clear_text_field_label">Clear</string>
     <string name="from_label">From</string>
     <string name="loading_data">Loading data…</string>
+    <string name="no_results_label">No results</string>
     <string name="to_label">To</string>
 </resources>
