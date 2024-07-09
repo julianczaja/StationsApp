@@ -168,3 +168,7 @@ fabric.properties
 
 # Kotlin 2.0
 .kotlin/
+
+# Assets with station and station keywords JSONs
+/app/src/main/assets/station_keywords.json
+/app/src/main/assets/stations.json

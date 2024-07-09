@@ -1,3 +1,8 @@
+import java.net.HttpURLConnection
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -95,4 +100,49 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.androidx.junit)
+}
+
+tasks.register("downloadStationsJson") {
+    doLast {
+        val assetsDir = file("$projectDir/src/main/assets/")
+        if (!assetsDir.exists()) {
+            assetsDir.mkdirs()
+        }
+
+        val outputFile = file("$assetsDir/stations.json")
+
+        val url = URL("https://koleo.pl/api/v2/main/stations")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.setRequestProperty("X-KOLEO-Version", "1")
+        connection.inputStream.use { input ->
+            Files.copy(input, outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+        println("Stations JSON saved in assets")
+    }
+}
+
+tasks.register("downloadStationKeywordsJson") {
+    doLast {
+        val assetsDir = file("$projectDir/src/main/assets/")
+        if (!assetsDir.exists()) {
+            assetsDir.mkdirs()
+        }
+
+        val outputFile = file("$assetsDir/station_keywords.json")
+
+        val url = URL("https://koleo.pl/api/v2/main/station_keywords")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.setRequestProperty("X-KOLEO-Version", "1")
+        connection.inputStream.use { input ->
+            Files.copy(input, outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+        println("Station keywords JSON saved in assets")
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("downloadStationsJson")
+    dependsOn("downloadStationKeywordsJson")
 }
