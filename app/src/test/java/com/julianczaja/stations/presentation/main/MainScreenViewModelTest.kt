@@ -254,4 +254,21 @@ class MainScreenViewModelTest {
 
         verify(exactly = 1) { getStationPromptsUseCase.invoke(any(), any(), any()) }
     }
+
+    @Test
+    fun `prompt list does not contain value of opposite search box`() = runTest {
+        val useCasePrompts = listOf("prompt 1", "prompt 2", "prompt 3")
+        val expectedPrompts = listOf(useCasePrompts[1], useCasePrompts[2])
+        every { getStationPromptsUseCase.invoke(any(), any(), any(), any()) } returns useCasePrompts
+
+        val viewModel = getViewModel()
+        viewModel.onSearchBoxSelected(SearchBoxType.A)
+        viewModel.onSearchBoxBValueChanged(useCasePrompts[0])
+
+        viewModel.prompts.test {
+            assertThat(awaitItem()).isEqualTo(expectedPrompts)
+        }
+
+        verify(exactly = 1) { getStationPromptsUseCase.invoke(any(), any(), any()) }
+    }
 }

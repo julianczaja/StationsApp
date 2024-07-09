@@ -111,8 +111,16 @@ class MainScreenViewModel @Inject constructor(
             query = when (selectedSearchBox) {
                 SearchBoxType.A -> searchBoxAData.value
                 SearchBoxType.B -> searchBoxBData.value
-            }.normalize()
+            }
+                .trim()
+                .normalize()
         )
+            .filterNot { propmt ->
+                propmt == when (selectedSearchBox) {
+                    SearchBoxType.A -> searchBoxBData.value
+                    SearchBoxType.B -> searchBoxAData.value
+                }
+            }
 
         null -> emptyList()
     }
