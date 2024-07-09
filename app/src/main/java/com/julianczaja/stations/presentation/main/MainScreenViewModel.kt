@@ -3,6 +3,8 @@ package com.julianczaja.stations.presentation.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.julianczaja.stations.data.NetworkManager
+import com.julianczaja.stations.data.model.Station
+import com.julianczaja.stations.data.model.StationKeyword
 import com.julianczaja.stations.di.IoDispatcher
 import com.julianczaja.stations.domain.StationsFileReader
 import com.julianczaja.stations.domain.repository.AppDataRepository
@@ -13,14 +15,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
-
 
 @HiltViewModel
 class MainScreenViewModel @Inject constructor(
@@ -47,7 +50,9 @@ class MainScreenViewModel @Inject constructor(
     private val _searchBoxBData = MutableStateFlow(SearchBoxData())
     val searchBoxBData = _searchBoxBData.asStateFlow()
 
-    private val stations = stationRepository.getStationsFromDatabase()
+    private val _selectedSearchBox: MutableStateFlow<SearchBoxType?> = MutableStateFlow(null)
+
+    private val _stations = stationRepository.getStationsFromDatabase()
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
@@ -55,13 +60,71 @@ class MainScreenViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    private val stationKeywords = stationKeywordRepository.getStationKeywordsFromDatabase()
+    private val _stationKeywords = stationKeywordRepository.getStationKeywordsFromDatabase()
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
+
+    val prompts: StateFlow<List<String>> = combine(
+        _stations,
+        _stationKeywords,
+        _searchBoxAData,
+        _searchBoxBData,
+        _selectedSearchBox
+    ) { stations, stationKeywords, searchBoxAData, searchBoxBData, selectedSearchBox ->
+        return@combine getPrompts(
+            stations = stations,
+            stationKeywords = stationKeywords,
+            searchBoxAData = searchBoxAData,
+            searchBoxBData = searchBoxBData,
+            selectedSearchBox = selectedSearchBox
+        )
+    }
+        .flowOn(ioDispatcher)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    private fun getPrompts(
+        stations: List<Station>,
+        stationKeywords: List<StationKeyword>,
+        searchBoxAData: SearchBoxData,
+        searchBoxBData: SearchBoxData,
+        selectedSearchBox: SearchBoxType?
+    ) = when (selectedSearchBox) {
+        SearchBoxType.A,
+        SearchBoxType.B -> stations // TODO: Implement searching by query
+            .sortedByDescending { it.hits }
+            .take(10)
+            .map { it.name }
+
+        null -> emptyList()
+    }
+
+    fun onPromptClicked(prompt: String) {
+        when (_selectedSearchBox.value) {
+            SearchBoxType.A -> _searchBoxAData.update { SearchBoxData(prompt, true) }
+            SearchBoxType.B -> _searchBoxBData.update { SearchBoxData(prompt, true) }
+            null -> Unit
+        }
+    }
+
+    fun onSearchBoxSelected(searchBoxType: SearchBoxType?) {
+        _selectedSearchBox.update { searchBoxType }
+    }
+
+    fun onSearchBoxAValueChanged(value: String) {
+        _searchBoxAData.update { SearchBoxData(value) }
+    }
+
+    fun onSearchBoxBValueChanged(value: String) {
+        _searchBoxBData.update { SearchBoxData(value) }
+    }
 
     fun updateData() {
         val isConnectedToNetwork = networkManager.isCurrentlyConnected()
@@ -73,14 +136,6 @@ class MainScreenViewModel @Inject constructor(
             }
         }
     }
-
-    fun onSearchBoxAValueChanged(value: String) {
-            _searchBoxAData.update { SearchBoxData(value) }
-        }
-
-    fun onSearchBoxBValueChanged(value: String) {
-            _searchBoxBData.update { SearchBoxData(value) }
-        }
 
     private suspend fun updateDatabaseFromNetwork() {
         val shouldRefresh = calculateShouldRefreshDataUseCase(

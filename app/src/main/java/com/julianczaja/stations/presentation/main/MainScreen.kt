@@ -1,19 +1,22 @@
 package com.julianczaja.stations.presentation.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +28,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -42,6 +48,7 @@ fun MainScreen(
     val isUpdating by viewModel.isUpdating.collectAsStateWithLifecycle()
     val searchBoxAData by viewModel.searchBoxAData.collectAsStateWithLifecycle()
     val searchBoxBData by viewModel.searchBoxBData.collectAsStateWithLifecycle()
+    val prompts by viewModel.prompts.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.updateData()
@@ -52,6 +59,9 @@ fun MainScreen(
         isUpdating = isUpdating,
         searchBoxAData = searchBoxAData,
         searchBoxBData = searchBoxBData,
+        prompts = prompts,
+        onSearchBoxSelected = viewModel::onSearchBoxSelected,
+        onPromptClicked = viewModel::onPromptClicked,
         onSearchBoxAValueChanged = viewModel::onSearchBoxAValueChanged,
         onSearchBoxBValueChanged = viewModel::onSearchBoxBValueChanged
     )
@@ -63,40 +73,100 @@ fun MainScreenContent(
     isUpdating: Boolean,
     searchBoxAData: SearchBoxData,
     searchBoxBData: SearchBoxData,
+    prompts: List<String>,
+    onSearchBoxSelected: (SearchBoxType?) -> Unit,
+    onPromptClicked: (String) -> Unit,
     onSearchBoxAValueChanged: (String) -> Unit,
     onSearchBoxBValueChanged: (String) -> Unit,
 ) {
-    val isFirstFocused = remember { mutableStateOf(false) }
-    val isSecondFocused = remember { mutableStateOf(false) }
-    val areBothNotFocused = !isFirstFocused.value && !isSecondFocused.value
-    val isAnyFocused = isFirstFocused.value || isSecondFocused.value
+    val focusManager = LocalFocusManager.current
+    val focusARequester = FocusRequester()
+    val focusBRequester = FocusRequester()
+    val currentSearchBoxFocus = remember { mutableStateOf<SearchBoxType?>(null) }
 
-    Column(
-        modifier = modifier.safeDrawingPadding()
-    ) {
-        SearchBox(
-            data = searchBoxAData,
-            onValueChange = onSearchBoxAValueChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp),
-            placeholderText = "From",
-            onFocusChange = { isFirstFocused.value = it }
-        )
-        SearchBox(
-            data = searchBoxBData,
-            onValueChange = onSearchBoxBValueChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp),
-            placeholderText = "To",
-            onFocusChange = { isSecondFocused.value = it }
-        )
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+    fun onFocusChanged(searchBoxType: SearchBoxType?, isFocused: Boolean) {
+        when (searchBoxType) {
+            SearchBoxType.A -> when {
+                isFocused -> {
+                    currentSearchBoxFocus.value = searchBoxType
+                    onSearchBoxSelected(searchBoxType)
+                }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+                !isFocused && !searchBoxAData.isValid -> onSearchBoxAValueChanged("")
+            }
+
+            SearchBoxType.B -> when {
+                isFocused -> {
+                    currentSearchBoxFocus.value = searchBoxType
+                    onSearchBoxSelected(searchBoxType)
+                }
+
+                !isFocused && !searchBoxBData.isValid -> onSearchBoxBValueChanged("")
+            }
+
+            null -> {
+                currentSearchBoxFocus.value = null
+                onSearchBoxSelected(null)
+            }
+        }
+    }
+
+    fun clearFocus() {
+        focusManager.clearFocus()
+        onFocusChanged(null, false)
+    }
+
+    fun promptClicked(prompt: String) {
+        onPromptClicked(prompt)
+
+        if (currentSearchBoxFocus.value == SearchBoxType.A && searchBoxBData.value.isEmpty()) {
+            focusBRequester.requestFocus()
+        } else if (currentSearchBoxFocus.value == SearchBoxType.B && searchBoxAData.value.isEmpty()) {
+            focusARequester.requestFocus()
+        } else {
+            clearFocus()
+        }
+    }
+
+    BackHandler(
+        enabled = currentSearchBoxFocus.value != null,
+        onBack = ::clearFocus
+    )
+
+    Column(modifier) {
+        Column(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SearchBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusARequester),
+                data = searchBoxAData,
+                onValueChange = onSearchBoxAValueChanged,
+                placeholderText = stringResource(R.string.from_label),
+                onFocusChange = { onFocusChanged(SearchBoxType.A, it) }
+            )
+            SearchBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusBRequester),
+                data = searchBoxBData,
+                onValueChange = onSearchBoxBValueChanged,
+                placeholderText = stringResource(R.string.to_label),
+                onFocusChange = { onFocusChanged(SearchBoxType.B, it) }
+            )
+        }
+        HorizontalDivider()
+
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
             this@Column.AnimatedVisibility(
-                visible = areBothNotFocused,
+                visible = currentSearchBoxFocus.value == null,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -108,20 +178,33 @@ fun MainScreenContent(
                     verticalArrangement = Arrangement.Center
                 ) {
                     // TODO: Add distance calculation content
+                    Text(text = "DISTANCE")
                 }
             }
 
             this@Column.AnimatedVisibility(
-                visible = isAnyFocused,
+                visible = currentSearchBoxFocus.value != null,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                exit = fadeOut()
             ) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.surface)
                 ) {
-                    // TODO: Add prompt items
+                    items(prompts) { prompt ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { promptClicked(prompt) }
+                        ) {
+                            Text(
+                                modifier = Modifier.padding(8.dp),
+                                text = prompt
+                            )
+                        }
+                        HorizontalDivider()
+                    }
                 }
             }
         }
@@ -131,18 +214,21 @@ fun MainScreenContent(
         enter = fadeIn(),
         exit = fadeOut()
     ) {
-        Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = .7f)),
-        ) {
-            Column(
-                modifier = modifier,
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator()
-                Text(text = stringResource(R.string.loading_data))
-            }
+        Box {
+            LoadingScreen(modifier)
         }
+    }
+}
+
+@Composable
+private fun LoadingScreen(modifier: Modifier) {
+    Column(
+        modifier = modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = .7f)),
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator()
+        Text(text = stringResource(R.string.loading_data))
     }
 }
 
@@ -155,7 +241,10 @@ private fun MainScreenPreview() {
             modifier = Modifier.fillMaxSize(),
             isUpdating = false,
             searchBoxAData = SearchBoxData("Some text A"),
-            searchBoxBData = SearchBoxData("Some text B"),
+            searchBoxBData = SearchBoxData("Some text B", isValid = true),
+            prompts = listOf("A", "B", "C"),
+            onSearchBoxSelected = {},
+            onPromptClicked = {},
             onSearchBoxAValueChanged = {},
             onSearchBoxBValueChanged = {}
         )
@@ -170,7 +259,10 @@ private fun MainScreenLoadingPreview() {
             modifier = Modifier.fillMaxSize(),
             isUpdating = true,
             searchBoxAData = SearchBoxData("Some text A"),
-            searchBoxBData = SearchBoxData("Some text B"),
+            searchBoxBData = SearchBoxData("Some text B", isValid = true),
+            prompts = listOf("A", "B", "C"),
+            onSearchBoxSelected = {},
+            onPromptClicked = {},
             onSearchBoxAValueChanged = {},
             onSearchBoxBValueChanged = {}
         )

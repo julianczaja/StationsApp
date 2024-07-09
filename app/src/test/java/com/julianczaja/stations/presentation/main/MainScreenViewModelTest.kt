@@ -190,4 +190,32 @@ class MainScreenViewModelTest {
         coVerify(exactly = 1) { stationsFileReader.readStations() }
         coVerify(exactly = 1) { stationsFileReader.readStationKeywords() }
     }
+
+    @Test
+    fun `search box A data should change on value changed`() = runTest {
+        val initialData = SearchBoxData()
+        val newData = SearchBoxData(value = "new data", isValid = false)
+
+        val viewModel = getViewModel()
+
+        viewModel.searchBoxAData.test {
+            assertThat(awaitItem()).isEqualTo(initialData)
+            viewModel.onSearchBoxAValueChanged(newData.value)
+            assertThat(awaitItem()).isEqualTo(newData)
+        }
+    }
+
+    @Test
+    fun `search box B data should change on value changed`() = runTest {
+        val initialData = SearchBoxData()
+        val newData = SearchBoxData(value = "new data", isValid = false)
+
+        val viewModel = getViewModel()
+
+        viewModel.searchBoxBData.test {
+            assertThat(awaitItem()).isEqualTo(initialData)
+            viewModel.onSearchBoxBValueChanged(newData.value)
+            assertThat(awaitItem()).isEqualTo(newData)
+        }
+    }
 }
