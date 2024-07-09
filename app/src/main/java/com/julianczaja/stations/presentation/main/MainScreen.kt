@@ -84,8 +84,8 @@ fun MainScreenContent(
     onSearchBoxBValueChanged: (String) -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
-    val focusARequester = FocusRequester()
-    val focusBRequester = FocusRequester()
+    val focusARequester = remember { FocusRequester() }
+    val focusBRequester = remember { FocusRequester() }
     val currentSearchBoxFocus = remember { mutableStateOf<SearchBoxType?>(null) }
 
     fun onFocusChanged(searchBoxType: SearchBoxType?, isFocused: Boolean) {
