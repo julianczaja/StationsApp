@@ -9,10 +9,13 @@ import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
 import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
+import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
+import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -32,6 +35,8 @@ class MainScreenViewModelTest {
     private lateinit var stationKeywordRepository: StationKeywordRepository
     private lateinit var appDataRepository: AppDataRepository
     private lateinit var calculateShouldRefreshDataUseCase: CalculateShouldRefreshDataUseCase
+    private lateinit var getStationPromptsUseCase: GetStationPromptsUseCase
+    private lateinit var normalizeStringUseCase: NormalizeStringUseCase
 
     @Before
     fun setup() {
@@ -44,6 +49,8 @@ class MainScreenViewModelTest {
         appDataRepository = mockk(relaxUnitFun = true)
         every { appDataRepository.getLastDataUpdateTimestamp() } returns flowOf(0L)
         calculateShouldRefreshDataUseCase = mockk()
+        getStationPromptsUseCase = mockk()
+        normalizeStringUseCase = NormalizeStringUseCase()
     }
 
     private fun getViewModel() = MainScreenViewModel(
@@ -53,6 +60,8 @@ class MainScreenViewModelTest {
         stationKeywordRepository = stationKeywordRepository,
         appDataRepository = appDataRepository,
         calculateShouldRefreshDataUseCase = calculateShouldRefreshDataUseCase,
+        getStationPromptsUseCase = getStationPromptsUseCase,
+        normalizeStringUseCase = normalizeStringUseCase,
         ioDispatcher = dispatcherRule.testDispatcher
     )
 
@@ -217,5 +226,32 @@ class MainScreenViewModelTest {
             viewModel.onSearchBoxBValueChanged(newData.value)
             assertThat(awaitItem()).isEqualTo(newData)
         }
+    }
+
+    @Test
+    fun `prompt list is empty when search box is not selected`() = runTest {
+        val viewModel = getViewModel()
+        viewModel.onSearchBoxSelected(null)
+
+        viewModel.prompts.test {
+            assertThat(awaitItem()).isEmpty()
+        }
+
+        verify(exactly = 0) { getStationPromptsUseCase.invoke(any(), any(), any()) }
+    }
+
+    @Test
+    fun `prompt list is correct when search box is selected`() = runTest {
+        val prompts = listOf("prompt 1", "prompt 2", "prompt 3")
+        every { getStationPromptsUseCase.invoke(any(), any(), any(), any()) } returns prompts
+
+        val viewModel = getViewModel()
+        viewModel.onSearchBoxSelected(SearchBoxType.A)
+
+        viewModel.prompts.test {
+            assertThat(awaitItem()).isEqualTo(prompts)
+        }
+
+        verify(exactly = 1) { getStationPromptsUseCase.invoke(any(), any(), any()) }
     }
 }

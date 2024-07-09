@@ -11,14 +11,18 @@ import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
 import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
+import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
+import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,6 +37,8 @@ class MainScreenViewModel @Inject constructor(
     private val stationKeywordRepository: StationKeywordRepository,
     private val appDataRepository: AppDataRepository,
     private val calculateShouldRefreshDataUseCase: CalculateShouldRefreshDataUseCase,
+    private val getStationPromptsUseCase: GetStationPromptsUseCase,
+    private val normalizeStringUseCase: NormalizeStringUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -61,6 +67,7 @@ class MainScreenViewModel @Inject constructor(
         )
 
     private val _stationKeywords = stationKeywordRepository.getStationKeywordsFromDatabase()
+        .normalize()
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
@@ -98,10 +105,14 @@ class MainScreenViewModel @Inject constructor(
         selectedSearchBox: SearchBoxType?
     ) = when (selectedSearchBox) {
         SearchBoxType.A,
-        SearchBoxType.B -> stations // TODO: Implement searching by query
-            .sortedByDescending { it.hits }
-            .take(10)
-            .map { it.name }
+        SearchBoxType.B -> getStationPromptsUseCase(
+            stations = stations,
+            stationKeywords = stationKeywords,
+            query = when (selectedSearchBox) {
+                SearchBoxType.A -> searchBoxAData.value
+                SearchBoxType.B -> searchBoxBData.value
+            }.normalize()
+        )
 
         null -> emptyList()
     }
@@ -188,4 +199,12 @@ class MainScreenViewModel @Inject constructor(
     }
 
     private fun getCurrentTimestamp() = System.currentTimeMillis()
+
+    private fun String.normalize() = normalizeStringUseCase(this)
+
+    private fun Flow<List<StationKeyword>>.normalize() = this.map { stationKeywords ->
+        stationKeywords.map { staionKeyword ->
+            staionKeyword.copy(keyword = normalizeStringUseCase(staionKeyword.keyword))
+        }
+    }
 }
