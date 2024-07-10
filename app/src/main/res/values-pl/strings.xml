@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Stacje</string>
+    <string name="cached_data_error_message">Nie udało się załadować danych.</string>
+    <string name="choose_stations_text">Wybierz stacje, aby obliczyć odległość pomiędzy nimi</string>
+    <string name="clear_text_field_label">Wyczyść</string>
+    <string name="distance_between_stations_text">Odległość pomiędzy stacjami:</string>
+    <string name="distance_calculation_error_message">Coś poszło nie tak podczas obliczania odległości. Spróbuj ponownie.</string>
+    <string name="from_label">Z</string>
+    <string name="km_number_format">%.1f km</string>
+    <string name="km_precise_number_format">%.2f km</string>
+    <string name="loading_data">Ładowanie danych…</string>
+    <string name="no_results_label">Brak wyników</string>
+    <string name="remote_update_error_message">Nie udało się zaktualizować danych stacji z serwera. Aplikacja użyje wcześniej zapisanych danych.</string>
+    <string name="retry_action_label">Spróbuj ponownie</string>
+    <string name="to_label">Do</string>
+</resources>
