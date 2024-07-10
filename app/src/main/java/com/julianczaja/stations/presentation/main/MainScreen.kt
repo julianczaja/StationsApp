@@ -1,5 +1,6 @@
 package com.julianczaja.stations.presentation.main
 
+import android.annotation.SuppressLint
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -65,8 +66,11 @@ import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.CACH
 import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.DISTANCE_CALCULATION_ERROR
 import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.REMOTE_UPDATE_ERROR
 import com.julianczaja.stations.presentation.main.components.SearchBox
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScreen(
     viewModel: MainScreenViewModel = viewModel()
@@ -116,7 +120,7 @@ fun MainScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        content = {
+        content = { _ ->
             MainScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 isUpdating = isUpdating,
@@ -140,7 +144,7 @@ fun MainScreenContent(
     isUpdating: Boolean,
     searchBoxAData: SearchBoxData,
     searchBoxBData: SearchBoxData,
-    prompts: List<String>,
+    prompts: ImmutableList<String>,
     distance: Float?,
     onSearchBoxSelected: (SearchBoxType?) -> Unit,
     onPromptClicked: (String) -> Unit,
@@ -336,7 +340,7 @@ private fun DistanceScreen(
 @Composable
 private fun PromptsContent(
     modifier: Modifier = Modifier,
-    prompts: List<String>,
+    prompts: ImmutableList<String>,
     onPromptClicked: (String) -> Unit
 ) {
     val orientation = LocalConfiguration.current.orientation
@@ -406,7 +410,7 @@ private fun MainScreenPreview() {
             isUpdating = false,
             searchBoxAData = SearchBoxData(),
             searchBoxBData = SearchBoxData("Some text", isValid = true),
-            prompts = emptyList(),
+            prompts = persistentListOf(),
             distance = null,
             onSearchBoxSelected = {},
             onPromptClicked = {},
@@ -426,7 +430,7 @@ private fun MainScreenLoadingPreview() {
             isUpdating = true,
             searchBoxAData = SearchBoxData(),
             searchBoxBData = SearchBoxData("Some text", isValid = true),
-            prompts = emptyList(),
+            prompts = persistentListOf(),
             distance = null,
             onSearchBoxSelected = {},
             onPromptClicked = {},
@@ -446,7 +450,7 @@ private fun MainScreenDistancePreview() {
             isUpdating = false,
             searchBoxAData = SearchBoxData("Some text A", isValid = true),
             searchBoxBData = SearchBoxData("Some text B", isValid = true),
-            prompts = emptyList(),
+            prompts = persistentListOf(),
             distance = 123.5f,
             onSearchBoxSelected = {},
             onPromptClicked = {},
@@ -465,7 +469,7 @@ private fun PromptsContentPreview() {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(300.dp),
-            prompts = listOf("Prompt A", "Prompt B", "Prompt C"),
+            prompts = persistentListOf("Prompt A", "Prompt B", "Prompt C"),
             onPromptClicked = {}
         )
     }

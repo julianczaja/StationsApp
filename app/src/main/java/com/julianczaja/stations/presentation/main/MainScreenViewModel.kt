@@ -15,6 +15,9 @@ import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
 import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
 import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -85,7 +88,7 @@ class MainScreenViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val prompts: StateFlow<List<String>> = combine(
+    val prompts: StateFlow<ImmutableList<String>> = combine(
         _stations,
         _stationKeywords,
         _searchBoxAData,
@@ -98,13 +101,13 @@ class MainScreenViewModel @Inject constructor(
             searchBoxAData = searchBoxAData,
             searchBoxBData = searchBoxBData,
             selectedSearchBox = selectedSearchBox
-        )
+        ).toImmutableList()
     }
         .flowOn(ioDispatcher)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
+            initialValue = persistentListOf()
         )
 
     private fun getPrompts(
