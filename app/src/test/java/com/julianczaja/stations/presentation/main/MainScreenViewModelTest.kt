@@ -4,10 +4,12 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.julianczaja.stations.MainDispatcherRule
 import com.julianczaja.stations.data.NetworkManager
+import com.julianczaja.stations.data.model.Station
 import com.julianczaja.stations.domain.StationsFileReader
 import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
+import com.julianczaja.stations.domain.usecase.CalculateDistanceBetweenStationsUseCase
 import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
 import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
 import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
@@ -37,6 +39,7 @@ class MainScreenViewModelTest {
     private lateinit var calculateShouldRefreshDataUseCase: CalculateShouldRefreshDataUseCase
     private lateinit var getStationPromptsUseCase: GetStationPromptsUseCase
     private lateinit var normalizeStringUseCase: NormalizeStringUseCase
+    private lateinit var calculateDistanceBetweenStationsUseCase: CalculateDistanceBetweenStationsUseCase
 
     @Before
     fun setup() {
@@ -51,6 +54,7 @@ class MainScreenViewModelTest {
         calculateShouldRefreshDataUseCase = mockk()
         getStationPromptsUseCase = mockk()
         normalizeStringUseCase = NormalizeStringUseCase()
+        calculateDistanceBetweenStationsUseCase = mockk()
     }
 
     private fun getViewModel() = MainScreenViewModel(
@@ -62,6 +66,7 @@ class MainScreenViewModelTest {
         calculateShouldRefreshDataUseCase = calculateShouldRefreshDataUseCase,
         getStationPromptsUseCase = getStationPromptsUseCase,
         normalizeStringUseCase = normalizeStringUseCase,
+        calculateDistanceBetweenStationsUseCase = calculateDistanceBetweenStationsUseCase,
         ioDispatcher = dispatcherRule.testDispatcher
     )
 
@@ -262,13 +267,50 @@ class MainScreenViewModelTest {
         every { getStationPromptsUseCase.invoke(any(), any(), any(), any()) } returns useCasePrompts
 
         val viewModel = getViewModel()
-        viewModel.onSearchBoxSelected(SearchBoxType.A)
         viewModel.onSearchBoxBValueChanged(useCasePrompts[0])
+        viewModel.onSearchBoxSelected(SearchBoxType.A)
 
         viewModel.prompts.test {
             assertThat(awaitItem()).isEqualTo(expectedPrompts)
         }
 
         verify(exactly = 1) { getStationPromptsUseCase.invoke(any(), any(), any()) }
+    }
+
+    @Test
+    fun `distance is calculated when two stations are selected`() = runTest {
+        val stationA = Station(
+            id = 1L,
+            name = "Station A",
+            latitude = 50.257603,
+            longitude = 19.017186,
+            hits = 10
+        )
+        val stationB = Station(
+            id = 2L,
+            name = "Station B",
+            latitude = 10.237603,
+            longitude = 11.017186,
+            hits = 11
+        )
+        val stations = listOf(stationA, stationB)
+        val distance = 123f
+
+        every { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) } returns distance
+        every { stationRepository.getStationsFromDatabase() } returns flowOf(stations)
+
+        val viewModel = getViewModel()
+
+        viewModel.distance.test {
+            assertThat(awaitItem()).isNull()
+            viewModel.onSearchBoxSelected(SearchBoxType.A)
+            viewModel.onPromptClicked(stations[0].name)
+            viewModel.onSearchBoxSelected(SearchBoxType.B)
+            viewModel.onPromptClicked(stations[1].name)
+            viewModel.calculateDistance()
+            assertThat(awaitItem()).isEqualTo(distance)
+        }
+
+        verify(exactly = 1) { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) }
     }
 }

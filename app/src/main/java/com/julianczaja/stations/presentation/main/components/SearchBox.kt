@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +59,7 @@ fun SearchBox(
         true -> OutlinedTextFieldDefaults.MinHeight
         false -> OutlinedTextFieldDefaults.MinHeight - 8.dp
     }
-    val height = animateDpAsState(
+    val height by animateDpAsState(
         targetValue = targetHeight,
         animationSpec = tween(easing = EaseOut),
         label = "height"
@@ -71,7 +72,7 @@ fun SearchBox(
         true -> 2.dp
         false -> 1.dp
     }
-    val borderThickness = animateDpAsState(
+    val borderThickness by animateDpAsState(
         targetValue = targetBorderThickness,
         animationSpec = tween(easing = EaseOut),
         label = "thickness"
@@ -80,7 +81,7 @@ fun SearchBox(
         true -> 16f
         false -> 14f
     }
-    val textSize = animateFloatAsState(
+    val textSize by animateFloatAsState(
         targetValue = targetTextSize,
         animationSpec = tween(easing = EaseOut),
         label = "text_size"
@@ -92,9 +93,9 @@ fun SearchBox(
 
     BasicTextField(
         modifier = modifier
-            .height(height.value)
+            .height(height)
             .border(
-                width = borderThickness.value,
+                width = borderThickness,
                 shape = RoundedCornerShape(8.dp),
                 color = borderColor
             )
@@ -108,7 +109,7 @@ fun SearchBox(
         singleLine = true,
         textStyle = LocalTextStyle.current.copy(
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = TextUnit(textSize.value, TextUnitType.Sp)
+            fontSize = TextUnit(textSize, TextUnitType.Sp)
         ),
         decorationBox = { innerTextField ->
             Row(

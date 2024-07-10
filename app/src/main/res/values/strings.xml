@@ -1,7 +1,11 @@
 <resources>
     <string name="app_name">Stations App</string>
+    <string name="choose_stations_text">Choose stations to calculate distance between them</string>
     <string name="clear_text_field_label">Clear</string>
+    <string name="distance_between_stations_text">Distance between stations:</string>
     <string name="from_label">From</string>
+    <string name="km_number_format">%.1f km</string>
+    <string name="km_precise_number_format">%.2f km</string>
     <string name="loading_data">Loading data…</string>
     <string name="no_results_label">No results</string>
     <string name="to_label">To</string>

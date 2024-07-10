@@ -10,6 +10,7 @@ import com.julianczaja.stations.domain.StationsFileReader
 import com.julianczaja.stations.domain.repository.AppDataRepository
 import com.julianczaja.stations.domain.repository.StationKeywordRepository
 import com.julianczaja.stations.domain.repository.StationRepository
+import com.julianczaja.stations.domain.usecase.CalculateDistanceBetweenStationsUseCase
 import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
 import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
 import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
@@ -39,6 +40,7 @@ class MainScreenViewModel @Inject constructor(
     private val calculateShouldRefreshDataUseCase: CalculateShouldRefreshDataUseCase,
     private val getStationPromptsUseCase: GetStationPromptsUseCase,
     private val normalizeStringUseCase: NormalizeStringUseCase,
+    private val calculateDistanceBetweenStationsUseCase: CalculateDistanceBetweenStationsUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -55,6 +57,9 @@ class MainScreenViewModel @Inject constructor(
 
     private val _searchBoxBData = MutableStateFlow(SearchBoxData())
     val searchBoxBData = _searchBoxBData.asStateFlow()
+
+    private val _distance = MutableStateFlow<Float?>(null)
+    val distance = _distance.asStateFlow()
 
     private val _selectedSearchBox: MutableStateFlow<SearchBoxType?> = MutableStateFlow(null)
 
@@ -139,10 +144,26 @@ class MainScreenViewModel @Inject constructor(
 
     fun onSearchBoxAValueChanged(value: String) {
         _searchBoxAData.update { SearchBoxData(value) }
+        _distance.update { null }
     }
 
     fun onSearchBoxBValueChanged(value: String) {
         _searchBoxBData.update { SearchBoxData(value) }
+        _distance.update { null }
+    }
+
+    fun calculateDistance() {
+        val searchBoxA = _searchBoxAData.value
+        val searchBoxB = _searchBoxBData.value
+        val stationA = _stations.value.find { it.name == searchBoxA.value }
+        val stationB = _stations.value.find { it.name == searchBoxB.value }
+
+        if (stationA == null || stationB == null) {
+            // TODO: Handle it correctly
+            throw Exception("Can't calculate distance because one of stations is null")
+        }
+
+        _distance.update { calculateDistanceBetweenStationsUseCase(stationA, stationB) }
     }
 
     fun updateData() {
