@@ -13,6 +13,9 @@ import com.julianczaja.stations.domain.usecase.CalculateDistanceBetweenStationsU
 import com.julianczaja.stations.domain.usecase.CalculateShouldRefreshDataUseCase
 import com.julianczaja.stations.domain.usecase.GetStationPromptsUseCase
 import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.CACHED_DATA_ERROR
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.DISTANCE_CALCULATION_ERROR
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.REMOTE_UPDATE_ERROR
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -312,5 +315,96 @@ class MainScreenViewModelTest {
         }
 
         verify(exactly = 1) { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) }
+    }
+
+    @Test
+    fun `event flow emits error when station not found in stations list`() = runTest {
+        val viewModel = getViewModel()
+
+        viewModel.eventFlow.test {
+            viewModel.calculateDistance()
+            assertThat(awaitItem()).isEqualTo(DISTANCE_CALCULATION_ERROR)
+        }
+        verify(exactly = 0) { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) }
+    }
+
+    @Test
+    fun `event flow emits error when usecase thrown exception`() = runTest {
+        val stationA = Station(
+            id = 1L,
+            name = "Station A",
+            latitude = 50.257603,
+            longitude = 19.017186,
+            hits = 10
+        )
+        val stationB = Station(
+            id = 2L,
+            name = "Station B",
+            latitude = 10.237603,
+            longitude = 11.017186,
+            hits = 11
+        )
+        val stations = listOf(stationA, stationB)
+
+        every { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) } throws Exception()
+        every { stationRepository.getStationsFromDatabase() } returns flowOf(stations)
+
+        val viewModel = getViewModel()
+        viewModel.onSearchBoxSelected(SearchBoxType.A)
+        viewModel.onPromptClicked(stations[0].name)
+        viewModel.onSearchBoxSelected(SearchBoxType.B)
+        viewModel.onPromptClicked(stations[1].name)
+
+        viewModel.eventFlow.test {
+            viewModel.calculateDistance()
+            assertThat(awaitItem()).isEqualTo(DISTANCE_CALCULATION_ERROR)
+        }
+        verify(exactly = 1) { calculateDistanceBetweenStationsUseCase.invoke(any(), any()) }
+    }
+
+    @Test
+    fun `event flow emits error when error thrown during remote data update`() = runTest {
+        coEvery { networkManager.isCurrentlyConnected() } returns true
+        coEvery { calculateShouldRefreshDataUseCase.invoke(any(), any()) } returns true
+        coEvery { stationRepository.updateStationsRemote() } returns Result.failure(Exception())
+
+        val viewModel = getViewModel()
+
+        viewModel.eventFlow.test {
+            viewModel.updateData()
+            assertThat(awaitItem()).isEqualTo(REMOTE_UPDATE_ERROR)
+        }
+        coVerify(exactly = 1) { stationRepository.updateStationsRemote() }
+    }
+
+    @Test
+    fun `event flow emits error when error thrown during stations file read`() = runTest {
+        coEvery { networkManager.isCurrentlyConnected() } returns false
+        coEvery { stationRepository.isEmpty() } returns true
+        coEvery { stationsFileReader.readStations() } returns Result.failure(Exception())
+
+        val viewModel = getViewModel()
+
+        viewModel.eventFlow.test {
+            viewModel.updateData()
+            assertThat(awaitItem()).isEqualTo(CACHED_DATA_ERROR)
+        }
+        coVerify(exactly = 1) { stationsFileReader.readStations() }
+    }
+
+    @Test
+    fun `event flow emits error when error thrown during station keywords file read`() = runTest {
+        coEvery { networkManager.isCurrentlyConnected() } returns false
+        coEvery { stationRepository.isEmpty() } returns false
+        coEvery { stationKeywordRepository.isEmpty() } returns true
+        coEvery { stationsFileReader.readStationKeywords() } returns Result.failure(Exception())
+
+        val viewModel = getViewModel()
+
+        viewModel.eventFlow.test {
+            viewModel.updateData()
+            assertThat(awaitItem()).isEqualTo(CACHED_DATA_ERROR)
+        }
+        coVerify(exactly = 1) { stationsFileReader.readStationKeywords() }
     }
 }

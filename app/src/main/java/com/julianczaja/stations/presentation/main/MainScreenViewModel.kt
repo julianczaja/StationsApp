@@ -17,9 +17,11 @@ import com.julianczaja.stations.domain.usecase.NormalizeStringUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -49,6 +51,9 @@ class MainScreenViewModel @Inject constructor(
         const val REFRESH_INTERVAL_MILLIS = ONE_DAY_MILLIS
     }
 
+    private val _eventFlow = MutableSharedFlow<Event>()
+    val eventFlow = _eventFlow.asSharedFlow()
+
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating = _isUpdating.asStateFlow()
 
@@ -61,7 +66,7 @@ class MainScreenViewModel @Inject constructor(
     private val _distance = MutableStateFlow<Float?>(null)
     val distance = _distance.asStateFlow()
 
-    private val _selectedSearchBox: MutableStateFlow<SearchBoxType?> = MutableStateFlow(null)
+    private val _selectedSearchBox = MutableStateFlow<SearchBoxType?>(null)
 
     private val _stations = stationRepository.getStationsFromDatabase()
         .flowOn(ioDispatcher)
@@ -110,22 +115,27 @@ class MainScreenViewModel @Inject constructor(
         selectedSearchBox: SearchBoxType?
     ) = when (selectedSearchBox) {
         SearchBoxType.A,
-        SearchBoxType.B -> getStationPromptsUseCase(
-            stations = stations,
-            stationKeywords = stationKeywords,
-            query = when (selectedSearchBox) {
-                SearchBoxType.A -> searchBoxAData.value
-                SearchBoxType.B -> searchBoxBData.value
-            }
-                .trim()
-                .normalize()
-        )
-            .filterNot { propmt ->
-                propmt == when (selectedSearchBox) {
-                    SearchBoxType.A -> searchBoxBData.value
-                    SearchBoxType.B -> searchBoxAData.value
+        SearchBoxType.B -> try {
+            getStationPromptsUseCase(
+                stations = stations,
+                stationKeywords = stationKeywords,
+                query = when (selectedSearchBox) {
+                    SearchBoxType.A -> searchBoxAData.value
+                    SearchBoxType.B -> searchBoxBData.value
                 }
-            }
+                    .trim()
+                    .normalize()
+            )
+                .filterNot { prompt ->
+                    prompt == when (selectedSearchBox) {
+                        SearchBoxType.A -> searchBoxBData.value
+                        SearchBoxType.B -> searchBoxAData.value
+                    }
+                }
+        } catch (e: Exception) {
+            Timber.e("Failed to get prompts: $e")
+            emptyList()
+        }
 
         null -> emptyList()
     }
@@ -152,18 +162,25 @@ class MainScreenViewModel @Inject constructor(
         _distance.update { null }
     }
 
-    fun calculateDistance() {
+    fun calculateDistance() = viewModelScope.launch(ioDispatcher) {
         val searchBoxA = _searchBoxAData.value
         val searchBoxB = _searchBoxBData.value
         val stationA = _stations.value.find { it.name == searchBoxA.value }
         val stationB = _stations.value.find { it.name == searchBoxB.value }
 
-        if (stationA == null || stationB == null) {
-            // TODO: Handle it correctly
-            throw Exception("Can't calculate distance because one of stations is null")
+        try {
+            if (stationA == null || stationB == null) {
+                throw Exception("Can't calculate distance because one of stations is null")
+            } else {
+                _distance.update { calculateDistanceBetweenStationsUseCase(stationA, stationB) }
+            }
+        } catch (e: Exception) {
+            Timber.e("Distance calculation error: $e")
+            _searchBoxAData.update { SearchBoxData() }
+            _searchBoxBData.update { SearchBoxData() }
+            _distance.update { null }
+            _eventFlow.emit(Event.DISTANCE_CALCULATION_ERROR)
         }
-
-        _distance.update { calculateDistanceBetweenStationsUseCase(stationA, stationB) }
     }
 
     fun updateData() {
@@ -187,18 +204,14 @@ class MainScreenViewModel @Inject constructor(
 
         _isUpdating.update { true }
 
-        val remoteUpdateSuccess = try {
+        try {
             stationRepository.updateStationsRemote().getOrThrow()
             stationKeywordRepository.updateStationKeywordsRemote().getOrThrow()
-            true
+            appDataRepository.setLastDataUpdateTimestamp(getCurrentTimestamp())
         } catch (e: Exception) {
             Timber.e("Remote data update error: $e")
+            _eventFlow.emit(Event.REMOTE_UPDATE_ERROR)
             preloadDatabaseFromJsonFile()
-            false
-        }
-
-        if (remoteUpdateSuccess) {
-            appDataRepository.setLastDataUpdateTimestamp(getCurrentTimestamp())
         }
 
         _isUpdating.update { false }
@@ -212,16 +225,20 @@ class MainScreenViewModel @Inject constructor(
 
         _isUpdating.update { true }
 
-        if (areStationsEmpty) {
-            stationsFileReader.readStations()
-                .onFailure { e -> Timber.e("Failed to read stations from file: $e") }
-                .onSuccess { stations -> stationRepository.updateDatabase(stations) }
-        }
-
-        if (areStationKeywordsEmpty) {
-            stationsFileReader.readStationKeywords()
-                .onFailure { e -> Timber.e("Failed to read station keywords from file: $e") }
-                .onSuccess { keywords -> stationKeywordRepository.updateDatabase(keywords) }
+        try {
+            if (areStationsEmpty) {
+                stationsFileReader.readStations()
+                    .onSuccess { stations -> stationRepository.updateDatabase(stations) }
+                    .getOrThrow()
+            }
+            if (areStationKeywordsEmpty) {
+                stationsFileReader.readStationKeywords()
+                    .onSuccess { keywords -> stationKeywordRepository.updateDatabase(keywords) }
+                    .getOrThrow()
+            }
+        } catch (e: Exception) {
+            Timber.e("Failed to read stations files: $e")
+            _eventFlow.emit(Event.CACHED_DATA_ERROR)
         }
 
         _isUpdating.update { false }
@@ -235,5 +252,11 @@ class MainScreenViewModel @Inject constructor(
         stationKeywords.map { staionKeyword ->
             staionKeyword.copy(keyword = normalizeStringUseCase(staionKeyword.keyword))
         }
+    }
+
+    enum class Event {
+        DISTANCE_CALCULATION_ERROR,
+        REMOTE_UPDATE_ERROR,
+        CACHED_DATA_ERROR
     }
 }

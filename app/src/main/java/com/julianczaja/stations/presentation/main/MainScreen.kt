@@ -31,18 +31,25 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -54,6 +61,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.julianczaja.stations.R
 import com.julianczaja.stations.presentation.components.AppBackground
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.CACHED_DATA_ERROR
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.DISTANCE_CALCULATION_ERROR
+import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.REMOTE_UPDATE_ERROR
 import com.julianczaja.stations.presentation.main.components.SearchBox
 
 
@@ -61,6 +71,10 @@ import com.julianczaja.stations.presentation.main.components.SearchBox
 fun MainScreen(
     viewModel: MainScreenViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var dataUpdated by rememberSaveable { mutableStateOf(false) }
+
     val isUpdating by viewModel.isUpdating.collectAsStateWithLifecycle()
     val searchBoxAData by viewModel.searchBoxAData.collectAsStateWithLifecycle()
     val searchBoxBData by viewModel.searchBoxBData.collectAsStateWithLifecycle()
@@ -68,21 +82,55 @@ fun MainScreen(
     val distance by viewModel.distance.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        viewModel.updateData()
+        if (!dataUpdated) {
+            viewModel.updateData()
+            dataUpdated = true
+        }
+
+        viewModel.eventFlow.collect { event ->
+            when (event) {
+                DISTANCE_CALCULATION_ERROR -> snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.distance_calculation_error_message),
+                    withDismissAction = true
+                )
+
+                REMOTE_UPDATE_ERROR -> snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.remote_update_error_message),
+                    withDismissAction = true
+                )
+
+                CACHED_DATA_ERROR -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.cached_data_error_message),
+                        actionLabel = context.getString(R.string.retry_action_label),
+                        duration = SnackbarDuration.Short
+                    )
+                    when (result) {
+                        SnackbarResult.Dismissed -> Unit
+                        SnackbarResult.ActionPerformed -> viewModel.updateData()
+                    }
+                }
+            }
+        }
     }
 
-    MainScreenContent(
-        modifier = Modifier.fillMaxSize(),
-        isUpdating = isUpdating,
-        searchBoxAData = searchBoxAData,
-        searchBoxBData = searchBoxBData,
-        prompts = prompts,
-        distance = distance,
-        onSearchBoxSelected = viewModel::onSearchBoxSelected,
-        onPromptClicked = viewModel::onPromptClicked,
-        onSearchBoxAValueChanged = viewModel::onSearchBoxAValueChanged,
-        onSearchBoxBValueChanged = viewModel::onSearchBoxBValueChanged,
-        calculateDistance = viewModel::calculateDistance
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        content = {
+            MainScreenContent(
+                modifier = Modifier.fillMaxSize(),
+                isUpdating = isUpdating,
+                searchBoxAData = searchBoxAData,
+                searchBoxBData = searchBoxBData,
+                prompts = prompts,
+                distance = distance,
+                onSearchBoxSelected = viewModel::onSearchBoxSelected,
+                onPromptClicked = viewModel::onPromptClicked,
+                onSearchBoxAValueChanged = viewModel::onSearchBoxAValueChanged,
+                onSearchBoxBValueChanged = viewModel::onSearchBoxBValueChanged,
+                calculateDistance = viewModel::calculateDistance
+            )
+        }
     )
 }
 
