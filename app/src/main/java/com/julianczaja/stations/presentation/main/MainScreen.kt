@@ -52,6 +52,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.julianczaja.stations.R
+import com.julianczaja.stations.common.TestTags
 import com.julianczaja.stations.presentation.components.AppBackground
 import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.CACHED_DATA_ERROR
 import com.julianczaja.stations.presentation.main.MainScreenViewModel.Event.DISTANCE_CALCULATION_ERROR
@@ -235,7 +237,8 @@ fun MainScreenContent(
             SearchBox(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusARequester),
+                    .focusRequester(focusARequester)
+                    .testTag(TestTags.SEARCH_BOX_A),
                 data = searchBoxAData,
                 onValueChange = onSearchBoxAValueChanged,
                 placeholderText = stringResource(R.string.from_label),
@@ -244,7 +247,8 @@ fun MainScreenContent(
             SearchBox(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusBRequester),
+                    .focusRequester(focusBRequester)
+                    .testTag(TestTags.SEARCH_BOX_B),
                 data = searchBoxBData,
                 onValueChange = onSearchBoxBValueChanged,
                 placeholderText = stringResource(R.string.to_label),
@@ -324,6 +328,7 @@ private fun DistanceScreen(
                 style = MaterialTheme.typography.headlineSmall
             )
             Text(
+                modifier = Modifier.testTag(TestTags.DISTANCE_TEXT),
                 text = when (distance < 1f) {
                     true -> stringResource(R.string.km_precise_number_format).format(distance)
                     false -> stringResource(R.string.km_number_format).format(distance)
@@ -345,7 +350,7 @@ private fun PromptsContent(
 ) {
     val orientation = LocalConfiguration.current.orientation
 
-    LazyColumn(modifier) {
+    LazyColumn(modifier.testTag(TestTags.PROMPTS_COLUMN)) {
         items(prompts) { prompt ->
             Row(
                 modifier = Modifier
@@ -372,7 +377,9 @@ private fun PromptsContent(
 @Composable
 private fun NoResultsScreen(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(16.dp),
+        modifier = modifier
+            .padding(16.dp)
+            .testTag(TestTags.NO_RESULT_SCREEN),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
     ) {
@@ -391,7 +398,9 @@ private fun NoResultsScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun LoadingScreen(modifier: Modifier) {
     Column(
-        modifier = modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = .7f)),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = .7f))
+            .testTag(TestTags.LOADING_SCREEN),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
